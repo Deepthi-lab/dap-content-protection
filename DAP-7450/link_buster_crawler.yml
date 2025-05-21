@@ -1,0 +1,63 @@
+Parameters:
+  linkBuster:
+      Type: String
+      Default: "link-busters"
+  env:
+    Type: String
+    AllowedValues:
+      - p
+      - u
+
+Mappings: 
+  EnvMap: 
+    u: 
+      envName: uat
+      catalogDB: mda_edw_dev
+      roleName: AWSGlueServiceRole-prod
+      bucket: s3-use1-ap-da-content-protection-datalake-u
+      triggerScheduler: false
+
+    p: 
+      envName: prod
+      roleName: AWSGlueServiceRole-prod
+      catalogDB: submission
+      bucket: s3-use1-ap-da-content-protection-datalake-p
+      triggerScheduler: false
+
+
+  LinkBusterCrawler:
+    Type: AWS::Glue::Crawler
+    Properties: 
+      DatabaseName: !FindInMap [EnvMap, !Ref env, catalogDB]
+      Name: !Sub gcrwl-use1-ap-da-lb-CPD-${linkBuster}-d-${env}
+      Role: !Sub
+              - arn:aws:iam::${AWS::AccountId}:role/${roleName}
+              - roleName: !FindInMap [EnvMap, !Ref env, roleName]
+      RecrawlPolicy:
+        RecrawlBehavior: CRAWL_EVERYTHING
+      SchemaChangePolicy: 
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: DEPRECATE_IN_DATABASE
+      Targets: 
+        S3Targets:
+        - Path: !Sub 
+                  - s3://${BUCKET}/${linkBuster}/    #s3://s3-use1-ap-da-content-protection-datalake-u/link-busters/
+                  - BUCKET: !FindInMap [EnvMap, !Ref env, bucket] 
+                    ENV: !FindInMap [EnvMap, !Ref env, envName]  
+          SampleSize: 1
+      Schedule: null
+      Configuration: "{\"Version\":1.0,\"CrawlerOutput\":{\"Tables\":{\"AddOrUpdateBehavior\":\"MergeNewColumns\"},\"CreateSingleSchemaForEachS3Path":true}}"
+      
+      Tags:
+        'Name': !Sub gcrwl-use1-ap-da-lb-CPD-${linkBuster}-d-${env}
+        'Description': 'Link Buster'
+        'Platform': DAP
+        'AP_Division': 'both'
+        'ValueStream' : 'enterprise'
+        'Owner': 'DAP'
+        'OwnerEmail' : 'tandf-data-analytics-dev-team@informa.com'
+        'Product' : 'ContentProtection'
+        'Environment': 'uat'            #!FindInMap [EnvMap, !Ref env, envName]
+        'Author': 'DAP'
+        'Project': 'submission'
+        'Service': 'Content Protection'
